@@ -1,0 +1,5 @@
+{
+  "name": "DevNexus - Warp Companion",
+  "description": "A terminal-inspired developer dashboard to track GitHub issues, manage research notes, and leverage Gemini AI for code analysis and task prioritization.",
+  "requestFramePermissions": []
+}
