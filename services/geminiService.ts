@@ -1,7 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Safely access process.env to prevent crashes in environments where it's undefined
-const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) || '';
+// Vite replaces process.env.API_KEY at build time with the actual string literal.
+// We disable TS checking here because 'process' is not defined in the browser,
+// but the replacement happens before runtime.
+// @ts-ignore
+const apiKey = process.env.API_KEY || '';
 
 const ai = new GoogleGenAI({ apiKey });
 
@@ -97,5 +100,59 @@ export const generateResearchIdeas = async (topic: string): Promise<string[]> =>
   } catch (error) {
     console.error("Gemini Research Failed:", error);
     return ["Error fetching research ideas."];
+  }
+};
+
+export const draftPullRequest = async (issueTitle: string, issueBody: string, suggestedFix?: string): Promise<{
+  title: string;
+  description: string;
+}> => {
+  if (!apiKey) {
+    return {
+      title: "API Key missing",
+      description: "Please configure environment variables to generate PR drafts."
+    };
+  }
+
+  try {
+    const model = 'gemini-2.5-flash';
+    const prompt = `
+      Draft a GitHub Pull Request based on the following issue.
+      
+      Issue Title: ${issueTitle}
+      Issue Description: ${issueBody}
+      ${suggestedFix ? `Technical Context/Proposed Fix: ${suggestedFix}` : ''}
+      
+      Return a JSON object with:
+      1. A clear, conventional commit style PR Title.
+      2. A markdown formatted PR Description including sections for "Summary", "Changes", and "Verification".
+    `;
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING }
+          },
+          required: ["title", "description"]
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from AI");
+    
+    return parseGeminiJson(text);
+  } catch (error) {
+    console.error("Gemini PR Draft Failed:", error);
+    return {
+      title: "Error Generating PR",
+      description: "Could not generate PR draft."
+    };
   }
 };
